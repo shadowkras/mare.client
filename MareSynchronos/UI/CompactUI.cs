@@ -27,6 +27,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
+using static FFXIVClientStructs.FFXIV.Component.GUI.AtkUnitBase.Delegates;
 
 namespace MareSynchronos.UI;
 
@@ -55,6 +56,7 @@ public class CompactUi : WindowMediatorSubscriberBase
     private Vector2 _lastPosition = Vector2.One;
     private Vector2 _lastSize = Vector2.One;
     private int _secretKeyIdx = -1;
+    private int _serverSelectionIndex = -1;
     private bool _showModalForUserAddition;
     private float _transferPartHeight;
     private bool _wasOpen;
@@ -153,7 +155,7 @@ public class CompactUi : WindowMediatorSubscriberBase
         };
     }
 
-    
+
 
     protected override void DrawInternal()
     {
@@ -202,9 +204,11 @@ public class CompactUi : WindowMediatorSubscriberBase
             ImGui.Separator();
         }
 
-        using (ImRaii.PushId("header")) DrawUIDHeader();
+        using (ImRaii.PushId("server")) DrawServerSelect();
         ImGui.Separator();
         using (ImRaii.PushId("serverstatus")) DrawServerStatus();
+        ImGui.Separator();
+        using (ImRaii.PushId("header")) DrawUIDHeader();
         ImGui.Separator();
         using (ImRaii.PushId("modload")) DrawModLoad();
 
@@ -279,7 +283,6 @@ public class CompactUi : WindowMediatorSubscriberBase
     }
     private void DrawServerStatus()
     {
-        var buttonSize = _uiSharedService.GetIconButtonSize(FontAwesomeIcon.Link);
         var userCount = _apiController.OnlineUsers.ToString(CultureInfo.InvariantCulture);
         var userSize = ImGui.CalcTextSize(userCount);
         var textSize = ImGui.CalcTextSize("Users Online");
@@ -312,44 +315,77 @@ public class CompactUi : WindowMediatorSubscriberBase
             ImGui.SetCursorPosX((ImGui.GetWindowContentRegionMin().X + UiSharedService.GetWindowContentRegionWidth()) / 2 - shardTextSize.X / 2);
             ImGui.TextUnformatted(shardConnection);
         }
+    }
 
-        ImGui.SameLine();
-        if (printShard)
+    private void DrawServerSelect()
+    {
+        string[] comboEntries = _serverManager.GetServerNames();
+        if (_serverSelectionIndex == -1)
         {
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - ((userSize.Y + textSize.Y) / 2 + shardTextSize.Y) / 2 - ImGui.GetStyle().ItemSpacing.Y + buttonSize.Y / 2);
+            _serverSelectionIndex = Array.IndexOf(_serverManager.GetServerApiUrls(), _serverManager.CurrentApiUrl);
         }
-        bool isConnectingOrConnected = _apiController.ServerState is ServerState.Connected or ServerState.Connecting or ServerState.Reconnecting;
-        var color = UiSharedService.GetBoolColor(!isConnectingOrConnected);
-        var connectedIcon = isConnectingOrConnected ? FontAwesomeIcon.Unlink : FontAwesomeIcon.Link;
-
-        ImGui.SameLine(ImGui.GetWindowContentRegionMin().X + UiSharedService.GetWindowContentRegionWidth() - buttonSize.X);
-        if (printShard)
+        if (_serverSelectionIndex == -1 || _serverSelectionIndex >= comboEntries.Length)
         {
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - ((userSize.Y + textSize.Y) / 2 + shardTextSize.Y) / 2 - ImGui.GetStyle().ItemSpacing.Y + buttonSize.Y / 2);
+            _serverSelectionIndex = 0;
         }
-
-        if (_apiController.ServerState is not (ServerState.Reconnecting or ServerState.Disconnecting))
+        for (int i = 0; i < comboEntries.Length; i++)
         {
-            using (ImRaii.PushColor(ImGuiCol.Text, color))
+            if (string.Equals(_serverManager.CurrentServer?.ServerName, comboEntries[i], StringComparison.OrdinalIgnoreCase))
+                comboEntries[i] += " [Current]";
+        }
+        if (ImGui.BeginCombo("Select Service", comboEntries[_serverSelectionIndex]))
+        {
+            for (int i = 0; i < comboEntries.Length; i++)
             {
-                if (_uiSharedService.IconButton(connectedIcon))
+                bool isSelected = _serverSelectionIndex == i;
+                if (ImGui.Selectable(comboEntries[i], isSelected))
                 {
-                    if (isConnectingOrConnected && !_serverManager.CurrentServer.FullPause)
-                    {
-                        _serverManager.CurrentServer.FullPause = true;
-                        _serverManager.Save();
-                    }
-                    else if (!isConnectingOrConnected && _serverManager.CurrentServer.FullPause)
-                    {
-                        _serverManager.CurrentServer.FullPause = false;
-                        _serverManager.Save();
-                    }
+                    _serverSelectionIndex = i;
+                    _serverManager.SelectServer(i);
+                }
 
-                    _ = _apiController.CreateConnectionsAsync();
+                if (isSelected)
+                {
+                    ImGui.SetItemDefaultFocus();
                 }
             }
 
-            UiSharedService.AttachToolTip(isConnectingOrConnected ? "Disconnect from " + _serverManager.CurrentServer.ServerName : "Connect to " + _serverManager.CurrentServer.ServerName);
+            ImGui.EndCombo();
+        }
+
+        ImGui.SameLine();
+
+        bool isConnectingOrConnected = _apiController.ServerState is ServerState.Connected or ServerState.Connecting or ServerState.Reconnecting;
+        var color = UiSharedService.GetBoolColor(!isConnectingOrConnected);
+        var connectedIcon = isConnectingOrConnected ? FontAwesomeIcon.Unlink : FontAwesomeIcon.Link;
+        var buttonSize = _uiSharedService.GetIconButtonSize(FontAwesomeIcon.Link);
+
+        ImGui.SameLine(ImGui.GetWindowContentRegionMin().X + UiSharedService.GetWindowContentRegionWidth() - buttonSize.X);
+
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+        {
+            if (_uiSharedService.IconButton(connectedIcon))
+            {
+                if (isConnectingOrConnected && !(_serverManager?.CurrentServer?.FullPause ?? false))
+                {
+                    _serverManager.CurrentServer.FullPause = true;
+                    _serverManager.Save();
+                }
+                else if (!isConnectingOrConnected && _serverManager.CurrentServer.FullPause)
+                {
+                    _serverManager.CurrentServer.FullPause = false;
+                    _serverManager.Save();
+                }
+
+                _ = _apiController.CreateConnectionsAsync();
+            }
+        }
+
+        if (!string.IsNullOrEmpty(_serverManager?.CurrentServer?.ServerName))
+        {
+            UiSharedService.AttachToolTip(isConnectingOrConnected ?
+                "Disconnect from " + _serverManager?.CurrentServer?.ServerName :
+                "Connect to " + _serverManager?.CurrentServer?.ServerName);
         }
     }
 
@@ -384,7 +420,7 @@ public class CompactUi : WindowMediatorSubscriberBase
                 ImGuiHelpers.ScaledRelativeSameLine(180, ImGui.GetStyle().ItemSpacing.X);
                 var calculatedRam = ((float)(playerLoadMemory / 1024) / (config.VRAMSizeAutoPauseThresholdMiB * 1024));
 
-                DrawProgressBar(calculatedRam, "VRAM usage.", warning, alert);
+                DrawProgressBar(calculatedRam, "VRAM usage", warning, alert);
             }
 
             ImGui.TextUnformatted($"Tri.:");
@@ -671,7 +707,7 @@ public class CompactUi : WindowMediatorSubscriberBase
         {
             ServerState.Connecting => "Attempting to connect to the server.",
             ServerState.Reconnecting => "Connection to server interrupted, attempting to reconnect to the server.",
-            ServerState.Disconnected => "You are currently disconnected from the Mare Synchronos server.",
+            ServerState.Disconnected => "You are currently not connect to any Mare Synchronos servers.",
             ServerState.Disconnecting => "Disconnecting from the server",
             ServerState.Unauthorized => "Server Response: " + _apiController.AuthFailureMessage,
             ServerState.Offline => "Your selected Mare Synchronos server is currently offline.",
