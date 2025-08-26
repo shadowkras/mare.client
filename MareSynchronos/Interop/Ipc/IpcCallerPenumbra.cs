@@ -219,11 +219,6 @@ public sealed class IpcCallerPenumbra : DisposableMediatorSubscriberBase, IIpcCa
             var collName = "Mare_" + uid;
             PenumbraApiEc penEC = _penumbraCreateNamedTemporaryCollection.Invoke(uid, collName, out collId);
             logger.LogTrace("Creating Temp Collection {collName}, GUID: {collId}", collName, collId);
-            if (penEC != PenumbraApiEc.Success)
-            {
-                logger.LogError("Failed to create temporary collection for {collName} with error code {penEC}. Please include this line in any error reports", collName, penEC);
-                return Guid.Empty;
-            }
             return collId;
 
         }).ConfigureAwait(false);
