@@ -40,7 +40,7 @@ public class ServerConfigurationManager
         EnsureMainExists();
     }
 
-    public string CurrentApiUrl => CurrentServer.ServerUri;
+    public string CurrentApiUrl => (!string.IsNullOrEmpty(CurrentServer.ServerApiUri) ? CurrentServer.ServerApiUri : CurrentServer.ServerUri);
     public ServerStorage CurrentServer => _configService.Current.ServerStorage[CurrentServerIndex];
     public bool SendCensusData
     {
@@ -195,7 +195,7 @@ public class ServerConfigurationManager
 
     public string[] GetServerApiUrls()
     {
-        return _configService.Current.ServerStorage.Select(v => v.ServerUri).ToArray();
+        return _configService.Current.ServerStorage.Select(v => (v.ServerApiUri ?? v.ServerUri)).ToArray();
     }
 
     public ServerStorage GetServerByIndex(int idx)

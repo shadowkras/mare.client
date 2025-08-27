@@ -41,36 +41,55 @@ namespace MareSynchronos.WebAPI.Services
             _httpClient.Dispose();
         }
 
-        public async Task<RegistrationDto> RegisterAccount(string serverUri, CancellationToken token)
+        public async Task<RegistrationDto> RegisterAccount(CancellationToken token)
         {
-            var authApiUrl = _serverManager.CurrentApiUrl ?? serverUri;
+            var authApiUrl = _serverManager.CurrentApiUrl;
 
-            _logger.LogInformation("Registrating on: {server}", serverUri);
+            _logger.LogInformation("Registrating on: {server}", authApiUrl);
 
             var secretKey = GenerateSecretKey();
             var hashedSecretKey = secretKey.GetHash256();
 
-            Uri postUri = MareAuth.RenewOAuthTokenFullPath(new Uri(authApiUrl
-                .Replace("wss://", "https://", StringComparison.OrdinalIgnoreCase)
-                .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
+            return await RegisterNewAccount(authApiUrl, secretKey, hashedSecretKey, false, token).ConfigureAwait(false);
+        }
+
+        private async Task<RegistrationDto> RegisterNewAccount(string authApiUrl, string secretKey, string hashedSecretKey, bool useV2, CancellationToken token)
+        {
+            Uri postUri = MareAuth.AuthRegisterFullPath(new Uri(authApiUrl
+                            .Replace("wss://", "https://", StringComparison.OrdinalIgnoreCase)
+                            .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
+
+            if(useV2)
+            {
+                postUri = MareAuth.AuthRegisterV2FullPath(new Uri(authApiUrl
+                            .Replace("wss://", "https://", StringComparison.OrdinalIgnoreCase)
+                            .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
+            }
 
             var result = await _httpClient.PostAsync(postUri, new FormUrlEncodedContent([
                 new("hashedSecretKey", hashedSecretKey)
             ]), token).ConfigureAwait(false);
 
             if (result.IsSuccessStatusCode)
-            { 
+            {
                 var response = await result.Content.ReadFromJsonAsync<RegistrationDto>(token).ConfigureAwait(false) ?? new();
                 response.SecretKey = secretKey;
 
                 return response;
             }
+            else if(!useV2)
+            {
+                //Try again with V2
+                return await RegisterNewAccount(authApiUrl, secretKey, hashedSecretKey, true, token).ConfigureAwait(false);
+            }
             else
             {
+                //If failed twice, log the error and leave.
                 var error = await result.Content.ReadAsStringAsync(token).ConfigureAwait(false);
-                _logger.LogError("Failed to register on server {server}. Status code: {statusCode}. Error: {error}", serverUri, result.StatusCode, error);
-                throw new HttpRequestException($"Failed to register on server {serverUri}. Status code: {result.StatusCode}. Error: {error}");
+                _logger.LogError("Failed to register on server {server}. Status code: {statusCode}. Error: {error}", authApiUrl, result.StatusCode, error);
+                throw new HttpRequestException($"Failed to register on server {authApiUrl}. Status code: {result.StatusCode}. Error: {error}");
             }
         }
+
     }
 }

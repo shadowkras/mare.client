@@ -1,4 +1,5 @@
-﻿using MareSynchronos.API.Routes;
+﻿using MareSynchronos.API.Dto;
+using MareSynchronos.API.Routes;
 using MareSynchronos.MareConfiguration.Models;
 using MareSynchronos.Services;
 using MareSynchronos.Services.Mediator;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Reflection;
 
 namespace MareSynchronos.WebAPI.SignalR;
@@ -49,11 +51,12 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
         Mediator.UnsubscribeAll(this);
     }
 
-    public async Task<string> GetNewToken(bool isRenewal, JwtIdentifier identifier, CancellationToken ct)
+    public async Task<string> GetNewToken(bool isRenewal, JwtIdentifier identifier, CancellationToken cancellationToken)
     {
         Uri tokenUri;
         string response = string.Empty;
         HttpResponseMessage result;
+        var authWithV2 = false;
 
         try
         {
@@ -68,12 +71,34 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
                         .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
                     var secretKey = _serverManager.GetSecretKey(out _)!;
                     var auth = secretKey.GetHash256();
+
                     _logger.LogInformation("Sending SecretKey Request to server with auth {auth}", string.Join("", identifier.SecretKeyOrOAuth.Take(10)));
+
                     result = await _httpClient.PostAsync(tokenUri, new FormUrlEncodedContent(
                     [
+                        new KeyValuePair<string, string>("auth", auth),
+                        new KeyValuePair<string, string>("charaIdent", await _dalamudUtil.GetPlayerNameHashedAsync().ConfigureAwait(false)),
+                    ]), cancellationToken).ConfigureAwait(false);
+
+                    if (!result.IsSuccessStatusCode)
+                    {
+                        tokenUri = MareAuth.AuthV2FullPath(new Uri(_serverManager.CurrentApiUrl
+                            .Replace("wss://", "https://", StringComparison.OrdinalIgnoreCase)
+                            .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
+                        secretKey = _serverManager.GetSecretKey(out _)!;
+                        auth = secretKey.GetHash256();
+
+                        _logger.LogInformation("Sending SecretKey Request to server with auth {auth}", string.Join("", identifier.SecretKeyOrOAuth.Take(10)));
+
+                        result = await _httpClient.PostAsync(tokenUri, new FormUrlEncodedContent(
+                        [
                             new KeyValuePair<string, string>("auth", auth),
                             new KeyValuePair<string, string>("charaIdent", await _dalamudUtil.GetPlayerNameHashedAsync().ConfigureAwait(false)),
-                    ]), ct).ConfigureAwait(false);
+                        ]), cancellationToken).ConfigureAwait(false);
+
+                        if (result.IsSuccessStatusCode)
+                            authWithV2 = true;
+                    }
                 }
                 else
                 {
@@ -87,7 +112,7 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
                         ]);
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identifier.SecretKeyOrOAuth);
                     _logger.LogInformation("Sending OAuth Request to server with auth {auth}", string.Join("", identifier.SecretKeyOrOAuth.Take(10)));
-                    result = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+                    result = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
@@ -99,7 +124,14 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
                     .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
                 HttpRequestMessage request = new(HttpMethod.Get, tokenUri.ToString());
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _tokenCache[identifier]);
-                result = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+                result = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (authWithV2)
+            {
+                var responseV2 = await result.Content.ReadFromJsonAsync<AuthV2ResponseDto>(cancellationToken).ConfigureAwait(false) ?? new();
+                _tokenCache[identifier] = responseV2.Token;
+                return responseV2.Token;
             }
 
             response = await result.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -258,7 +290,7 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
                 return false;
         }
 
-        var tokenUri = MareAuth.RenewOAuthTokenFullPath(new Uri(currentServer.ServerUri
+        var tokenUri = MareAuth.RenewOAuthTokenFullPath(new Uri((currentServer.ServerApiUri ?? currentServer.ServerUri)
             .Replace("wss://", "https://", StringComparison.OrdinalIgnoreCase)
             .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, tokenUri.ToString());

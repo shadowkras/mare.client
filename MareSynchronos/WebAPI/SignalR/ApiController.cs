@@ -243,23 +243,26 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
                 {
                     if (_connectionDto.CurrentClientVersion > currentClientVer)
                     {
-                        Mediator.Publish(new NotificationMessage("Client incompatible",
-                            $"Your client is outdated ({currentClientVer.Major}.{currentClientVer.Minor}.{currentClientVer.Build}), current is: " +
-                            $"{_connectionDto.CurrentClientVersion.Major}.{_connectionDto.CurrentClientVersion.Minor}.{_connectionDto.CurrentClientVersion.Build}. " +
-                            $"This client version is incompatible and will not be able to connect. Please update your Mare Synchronos client.",
-                            NotificationType.Error));
+                        // Disabled for now, each server has a different version.
+                        //Mediator.Publish(new NotificationMessage("Client incompatible",
+                        //    $"Your client is outdated ({currentClientVer.Major}.{currentClientVer.Minor}.{currentClientVer.Build}), current is: " +
+                        //    $"{_connectionDto.CurrentClientVersion.Major}.{_connectionDto.CurrentClientVersion.Minor}.{_connectionDto.CurrentClientVersion.Build}. " +
+                        //    $"This client version is incompatible and will not be able to connect. Please update your Mare Synchronos client.",
+                        //    NotificationType.Error));
                     }
+
                     await StopConnectionAsync(ServerState.VersionMisMatch).ConfigureAwait(false);
                     return;
                 }
 
                 if (_connectionDto.CurrentClientVersion > currentClientVer)
                 {
-                    Mediator.Publish(new NotificationMessage("Client outdated",
-                        $"Your client is outdated ({currentClientVer.Major}.{currentClientVer.Minor}.{currentClientVer.Build}), current is: " +
-                        $"{_connectionDto.CurrentClientVersion.Major}.{_connectionDto.CurrentClientVersion.Minor}.{_connectionDto.CurrentClientVersion.Build}. " +
-                        $"Please keep your Mare Synchronos client up-to-date.",
-                        NotificationType.Warning));
+                    // Disabled for now, each server has a different version.
+                    //Mediator.Publish(new NotificationMessage("Client outdated",
+                    //    $"Your client is outdated ({currentClientVer.Major}.{currentClientVer.Minor}.{currentClientVer.Build}), current is: " +
+                    //    $"{_connectionDto.CurrentClientVersion.Major}.{_connectionDto.CurrentClientVersion.Minor}.{_connectionDto.CurrentClientVersion.Build}. " +
+                    //    $"Please keep your Mare Synchronos client up-to-date.",
+                    //    NotificationType.Warning));
                 }
 
                 if (_dalamudUtil.HasModifiedGameFiles)
@@ -540,7 +543,8 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
         _healthCheckTokenSource?.Cancel();
         ServerState = ServerState.Reconnecting;
         Logger.LogWarning(arg, "Connection closed... Reconnecting");
-        PublishEventMessage($"Connection interrupted, reconnecting to {_serverManager.CurrentServer.ServerName}", MareSynchronos.Services.Events.EventSeverity.Warning);
+        PublishEventMessage($"Connection interrupted, reconnecting to {_serverManager.CurrentServer.ServerName}", 
+            MareSynchronos.Services.Events.EventSeverity.Warning);
     }
 
     private async Task<bool> RefreshTokenAsync(CancellationToken ct)
@@ -579,12 +583,13 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
     {
         ServerState = ServerState.Disconnecting;
 
-        Logger.LogInformation("Stopping existing connection");
+        Logger.LogInformation("Stopping existing connection to {serverName} ({url})", _serverManager.CurrentServer.ServerName, _serverManager.CurrentServer.ServerUri);
         await _hubFactory.DisposeHubAsync().ConfigureAwait(false);
 
         if (_mareHub is not null)
         {
-            PublishEventMessage($"Stopping existing connection to {_serverManager.CurrentServer.ServerName}", MareSynchronos.Services.Events.EventSeverity.Informational);
+            PublishEventMessage($"Stopping existing connection to {_serverManager.CurrentServer.ServerName} ({_serverManager.CurrentServer.ServerUri})", 
+                MareSynchronos.Services.Events.EventSeverity.Informational);
 
             _initialized = false;
             _healthCheckTokenSource?.Cancel();

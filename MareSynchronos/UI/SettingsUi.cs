@@ -1680,17 +1680,11 @@ public class SettingsUi : WindowMediatorSubscriberBase
             {
                 var serverName = selectedServer.ServerName;
                 var serverUri = selectedServer.ServerUri;
+                var serverApiUri = selectedServer.ServerApiUri ?? selectedServer.ServerUri;
+                var serverHubUri = selectedServer.ServerHubUri ?? selectedServer.ServerUri;
                 var isMain = string.Equals(serverName, ApiController.MainServer, StringComparison.OrdinalIgnoreCase);
                 var flags = isMain ? ImGuiInputTextFlags.ReadOnly : ImGuiInputTextFlags.None;
-
-                if (ImGui.InputText("Service URI", ref serverUri, 255, flags))
-                {
-                    selectedServer.ServerUri = serverUri;
-                }
-                if (isMain)
-                {
-                    _uiShared.DrawHelpText("You cannot edit the URI of the main service.");
-                }
+                var useAdvancedUris = selectedServer.UseAdvancedUris;
 
                 if (ImGui.InputText("Service Name", ref serverName, 255, flags))
                 {
@@ -1700,6 +1694,38 @@ public class SettingsUi : WindowMediatorSubscriberBase
                 if (isMain)
                 {
                     _uiShared.DrawHelpText("You cannot edit the name of the main service.");
+                }
+
+                if (ImGui.InputText("Service URI", ref serverUri, 255, flags))
+                {
+                    selectedServer.ServerUri = serverUri;
+                    _serverConfigurationManager.Save();
+                }
+
+                if (isMain)
+                {
+                    _uiShared.DrawHelpText("You cannot edit the URI of the main service.");
+                }
+
+                ImGui.SameLine();
+                if (ImGui.Checkbox("Advanced URIs", ref useAdvancedUris))
+                {
+                    selectedServer.UseAdvancedUris = useAdvancedUris;
+                    _serverConfigurationManager.Save();
+                }
+
+                if (useAdvancedUris)
+                {
+                    if (ImGui.InputText("Service Api URI", ref serverApiUri, 255, flags))
+                    {
+                        selectedServer.ServerApiUri = serverApiUri;
+                        _serverConfigurationManager.Save();
+                    }
+                    if (ImGui.InputText("Service Hub URI", ref serverHubUri, 255, flags))
+                    {
+                        selectedServer.ServerHubUri = serverHubUri;
+                        _serverConfigurationManager.Save();
+                    }
                 }
 
                 ImGui.SetNextItemWidth(200);
@@ -1733,6 +1759,7 @@ public class SettingsUi : WindowMediatorSubscriberBase
                     selectedServer.UseOAuth2 = useOauth;
                     _serverConfigurationManager.Save();
                 }
+
                 _uiShared.DrawHelpText("Use Discord OAuth2 Authentication to identify with this server instead of secret keys");
                 if (useOauth)
                 {

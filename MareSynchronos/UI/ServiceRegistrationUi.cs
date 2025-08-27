@@ -201,7 +201,7 @@ public partial class ServiceRegistrationUi : WindowMediatorSubscriberBase
             {
                 try
                 {
-                    var registrationReply = await _registrationService.RegisterAccount(selectedServer.ServerUri, CancellationToken.None).ConfigureAwait(false);
+                    var registrationReply = await _registrationService.RegisterAccount(CancellationToken.None).ConfigureAwait(false);
                     if (!registrationReply.Success)
                     {
                         _logger.LogWarning("Registration failed: {err}", registrationReply.ErrorMessage);
