@@ -107,6 +107,13 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
 
     public async Task CreateConnectionsAsync()
     {
+        if (!_serverManager.HasValidConfig())
+        {
+            Logger.LogInformation("No valid configuration found for the server.");
+            Mediator.Publish(new SwitchToServiceRegistrationUiMessage());
+            return;
+        }
+
         if (!_serverManager.ShownCensusPopup)
         {
             Mediator.Publish(new OpenCensusPopupMessage());
@@ -186,8 +193,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
         await StopConnectionAsync(ServerState.Disconnected).ConfigureAwait(false);
 
         Logger.LogInformation("Recreating Connection");
-        Mediator.Publish(new EventMessage(new Services.Events.Event(nameof(ApiController), Services.Events.EventSeverity.Informational,
-            $"Starting Connection to {_serverManager.CurrentServer.ServerName}")));
+        PublishEventMessage($"Starting Connection to {_serverManager.CurrentServer.ServerName}", MareSynchronos.Services.Events.EventSeverity.Informational);
 
         _connectionCancellationTokenSource?.Cancel();
         _connectionCancellationTokenSource?.Dispose();
@@ -534,9 +540,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
         _healthCheckTokenSource?.Cancel();
         ServerState = ServerState.Reconnecting;
         Logger.LogWarning(arg, "Connection closed... Reconnecting");
-        Mediator.Publish(new EventMessage(new Services.Events.Event(nameof(ApiController), Services.Events.EventSeverity.Warning,
-            $"Connection interrupted, reconnecting to {_serverManager.CurrentServer.ServerName}")));
-
+        PublishEventMessage($"Connection interrupted, reconnecting to {_serverManager.CurrentServer.ServerName}", MareSynchronos.Services.Events.EventSeverity.Warning);
     }
 
     private async Task<bool> RefreshTokenAsync(CancellationToken ct)
@@ -580,8 +584,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
 
         if (_mareHub is not null)
         {
-            Mediator.Publish(new EventMessage(new Services.Events.Event(nameof(ApiController), Services.Events.EventSeverity.Informational,
-                $"Stopping existing connection to {_serverManager.CurrentServer.ServerName}")));
+            PublishEventMessage($"Stopping existing connection to {_serverManager.CurrentServer.ServerName}", MareSynchronos.Services.Events.EventSeverity.Informational);
 
             _initialized = false;
             _healthCheckTokenSource?.Cancel();
@@ -591,6 +594,14 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
         }
 
         ServerState = state;
+    }
+
+    private void PublishEventMessage(string message, MareSynchronos.Services.Events.EventSeverity severity)
+    {
+        Mediator.Publish(new EventMessage(new MareSynchronos.Services.Events.Event(
+            nameof(ApiController),
+            severity,
+            message)));
     }
 }
 #pragma warning restore MA0040

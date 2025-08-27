@@ -543,6 +543,8 @@ public class ServerConfigurationManager
 
     public async Task<string?> GetDiscordOAuthToken(Uri discordAuthUri, string serverUri, CancellationToken token)
     {
+        _logger.LogInformation("Attempting to get discord auth token. Url: {url} Server: {server}", discordAuthUri.AbsoluteUri, serverUri);
+
         var sessionId = BitConverter.ToString(RandomNumberGenerator.GetBytes(64)).Replace("-", "").ToLower();
         Util.OpenLink(discordAuthUri.ToString() + "?sessionId=" + sessionId);
 

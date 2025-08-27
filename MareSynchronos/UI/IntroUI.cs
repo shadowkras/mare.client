@@ -1,18 +1,13 @@
 ﻿using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Colors;
-using Dalamud.Interface.Utility;
-using Dalamud.Interface.Utility.Raii;
-using Dalamud.Utility;
 using MareSynchronos.FileCache;
 using MareSynchronos.Localization;
 using MareSynchronos.MareConfiguration;
-using MareSynchronos.MareConfiguration.Models;
 using MareSynchronos.Services;
 using MareSynchronos.Services.Mediator;
 using MareSynchronos.Services.ServerConfiguration;
 using Microsoft.Extensions.Logging;
 using System.Numerics;
-using System.Text.RegularExpressions;
 
 namespace MareSynchronos.UI;
 
@@ -27,11 +22,9 @@ public partial class IntroUi : WindowMediatorSubscriberBase
     private int _currentLanguage;
     private bool _readFirstPage;
 
-    private string _secretKey = string.Empty;
     private string _timeoutLabel = string.Empty;
     private Task? _timeoutTask;
     private string[]? _tosParagraphs;
-    private bool _useLegacyLogin = false;
 
     public IntroUi(ILogger<IntroUi> logger, UiSharedService uiShared, MareConfigService configService,
         CacheMonitor fileCacheManager, ServerConfigurationManager serverConfigurationManager, MareMediator mareMediator,
@@ -62,11 +55,10 @@ public partial class IntroUi : WindowMediatorSubscriberBase
         });
     }
 
-    private int _prevIdx = -1;
-
     protected override void DrawInternal()
     {
-        if (_uiShared.IsInGpose) return;
+        if (_uiShared.IsInGpose) 
+            return;
 
         if (!_configService.Current.AcceptedAgreement && !_readFirstPage)
         {
@@ -202,145 +194,15 @@ public partial class IntroUi : WindowMediatorSubscriberBase
         }
         else if (!_uiShared.ApiController.ServerAlive)
         {
-            using (_uiShared.UidFont.Push())
-                ImGui.TextUnformatted("Service Registration");
-            ImGui.Separator();
-            UiSharedService.TextWrapped("To be able to use Mare Synchronos you will have to register an account.");
-            UiSharedService.TextWrapped("For the official Mare Synchronos Servers the account creation will be handled on the official Mare Synchronos Discord. Due to security risks for the server, there is no way to handle this sensibly otherwise.");
-            UiSharedService.TextWrapped("If you want to register at the main server \"" + WebAPI.ApiController.MainServer + "\" join the Discord and follow the instructions as described in #mare-service.");
-
-            if (ImGui.Button("Join the Mare Synchronos Discord"))
+            if(!_serverConfigurationManager.HasValidConfig())
             {
-                Util.OpenLink("https://discord.gg/mpNdkrTRjW");
-            }
-
-            UiSharedService.TextWrapped("For all other non official services you will have to contact the appropriate service provider how to obtain a secret key.");
-
-            UiSharedService.DistanceSeparator();
-
-            UiSharedService.TextWrapped("Once you have registered you can connect to the service using the tools provided below.");
-
-            int serverIdx = 0;
-            var selectedServer = _serverConfigurationManager.GetServerByIndex(serverIdx);
-
-            using (var node = ImRaii.TreeNode("Advanced Options"))
-            {
-                if (node)
-                {
-                    serverIdx = _uiShared.DrawServiceSelection(selectOnChange: true, showConnect: false);
-                    if (serverIdx != _prevIdx)
-                    {
-                        _uiShared.ResetOAuthTasksState();
-                        _prevIdx = serverIdx;
-                    }
-
-                    selectedServer = _serverConfigurationManager.GetServerByIndex(serverIdx);
-                    _useLegacyLogin = !selectedServer.UseOAuth2;
-
-                    if (ImGui.Checkbox("Use Legacy Login with Secret Key", ref _useLegacyLogin))
-                    {
-                        _serverConfigurationManager.GetServerByIndex(serverIdx).UseOAuth2 = !_useLegacyLogin;
-                        _serverConfigurationManager.Save();
-                    }
-                }
-            }
-
-            if (_useLegacyLogin)
-            {
-                var text = "Enter Secret Key";
-                var buttonText = "Save";
-                var buttonWidth = _secretKey.Length != 64 ? 0 : ImGuiHelpers.GetButtonSize(buttonText).X + ImGui.GetStyle().ItemSpacing.X;
-                var textSize = ImGui.CalcTextSize(text);
-
-                ImGuiHelpers.ScaledDummy(5);
-                UiSharedService.DrawGroupedCenteredColorText("Strongly consider to use OAuth2 to authenticate, if the server supports it (the current main server does). " +
-                    "The authentication flow is simpler and you do not require to store or maintain Secret Keys. " +
-                    "You already implicitly register using Discord, so the OAuth2 method will be cleaner and more straight-forward to use.", ImGuiColors.DalamudYellow, 500);
-                ImGuiHelpers.ScaledDummy(5);
-
-                ImGui.AlignTextToFramePadding();
-                ImGui.TextUnformatted(text);
-                ImGui.SameLine();
-                ImGui.SetNextItemWidth(UiSharedService.GetWindowContentRegionWidth() - ImGui.GetWindowContentRegionMin().X - buttonWidth - textSize.X);
-                ImGui.InputText("", ref _secretKey, 64);
-                if (_secretKey.Length > 0 && _secretKey.Length != 64)
-                {
-                    UiSharedService.ColorTextWrapped("Your secret key must be exactly 64 characters long. Don't enter your Lodestone auth here.", ImGuiColors.DalamudRed);
-                }
-                else if (_secretKey.Length == 64 && !HexRegex().IsMatch(_secretKey))
-                {
-                    UiSharedService.ColorTextWrapped("Your secret key can only contain ABCDEF and the numbers 0-9.", ImGuiColors.DalamudRed);
-                }
-                else if (_secretKey.Length == 64)
-                {
-                    ImGui.SameLine();
-                    if (ImGui.Button(buttonText))
-                    {
-                        if (_serverConfigurationManager.CurrentServer == null) _serverConfigurationManager.SelectServer(0);
-                        if (!_serverConfigurationManager.CurrentServer!.SecretKeys.Any())
-                        {
-                            _serverConfigurationManager.CurrentServer!.SecretKeys.Add(_serverConfigurationManager.CurrentServer.SecretKeys.Select(k => k.Key).LastOrDefault() + 1, new SecretKey()
-                            {
-                                FriendlyName = $"Secret Key added on Setup ({DateTime.Now:yyyy-MM-dd})",
-                                Key = _secretKey,
-                            });
-                            _serverConfigurationManager.AddCurrentCharacterToServer();
-                        }
-                        else
-                        {
-                            _serverConfigurationManager.CurrentServer!.SecretKeys[0] = new SecretKey()
-                            {
-                                FriendlyName = $"Secret Key added on Setup ({DateTime.Now:yyyy-MM-dd})",
-                                Key = _secretKey,
-                            };
-                        }
-                        _secretKey = string.Empty;
-                        _ = Task.Run(() => _uiShared.ApiController.CreateConnectionsAsync());
-                    }
-                }
+                Mediator.Publish(new SwitchToServiceRegistrationUiMessage());
+                IsOpen = false;
             }
             else
             {
-                if (string.IsNullOrEmpty(selectedServer.OAuthToken))
-                {
-                    UiSharedService.TextWrapped("Press the button below to verify the server has OAuth2 capabilities. Afterwards, authenticate using Discord in the Browser window.");
-                    _uiShared.DrawOAuth(selectedServer);
-                }
-                else
-                {
-                    UiSharedService.ColorTextWrapped($"OAuth2 is connected. Linked to: Discord User {_serverConfigurationManager.GetDiscordUserFromToken(selectedServer)}", ImGuiColors.HealerGreen);
-                    UiSharedService.TextWrapped("Now press the update UIDs button to get a list of all of your UIDs on the server.");
-                    _uiShared.DrawUpdateOAuthUIDsButton(selectedServer);
-                    var playerName = _dalamudUtilService.GetPlayerName();
-                    var playerWorld = _dalamudUtilService.GetHomeWorldId();
-                    UiSharedService.TextWrapped($"Once pressed, select the UID you want to use for your current character {_dalamudUtilService.GetPlayerName()}. If no UIDs are visible, make sure you are connected to the correct Discord account. " +
-                        $"If that is not the case, use the unlink button below (hold CTRL to unlink).");
-                    _uiShared.DrawUnlinkOAuthButton(selectedServer);
-
-                    var auth = selectedServer.Authentications.Find(a => string.Equals(a.CharacterName, playerName, StringComparison.Ordinal) && a.WorldId == playerWorld);
-                    if (auth == null)
-                    {
-                        auth = new Authentication()
-                        {
-                            CharacterName = playerName,
-                            WorldId = playerWorld
-                        };
-                        selectedServer.Authentications.Add(auth);
-                        _serverConfigurationManager.Save();
-                    }
-
-                    _uiShared.DrawUIDComboForAuthentication(0, auth, selectedServer.ServerUri);
-
-                    using (ImRaii.Disabled(string.IsNullOrEmpty(auth.UID)))
-                    {
-                        if (_uiShared.IconTextButton(Dalamud.Interface.FontAwesomeIcon.Link, "Connect to Service"))
-                        {
-                            _ = Task.Run(() => _uiShared.ApiController.CreateConnectionsAsync());
-                        }
-                    }
-                    if (string.IsNullOrEmpty(auth.UID))
-                        UiSharedService.AttachToolTip("Select a UID to be able to connect to the service");
-                }
+                _ = Task.Run(() => _uiShared.ApiController.CreateConnectionsAsync());
+                IsOpen = false;
             }
         }
         else
@@ -359,7 +221,4 @@ public partial class IntroUi : WindowMediatorSubscriberBase
 
         _tosParagraphs = [Strings.ToS.Paragraph1, Strings.ToS.Paragraph2, Strings.ToS.Paragraph3, Strings.ToS.Paragraph4, Strings.ToS.Paragraph5, Strings.ToS.Paragraph6];
     }
-
-    [GeneratedRegex("^([A-F0-9]{2})+")]
-    private static partial Regex HexRegex();
 }

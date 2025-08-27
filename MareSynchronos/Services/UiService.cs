@@ -95,7 +95,9 @@ public sealed class UiService : DisposableMediatorSubscriberBase
     public void ToggleUi()
     {
         if (_mareConfigService.Current.HasValidSetup())
+        {
             Mediator.Publish(new UiToggleMessage(typeof(SettingsUi)));
+        }
         else
             Mediator.Publish(new UiToggleMessage(typeof(IntroUi)));
     }

@@ -106,6 +106,7 @@ public class SettingsUi : WindowMediatorSubscriberBase
 
         Mediator.Subscribe<OpenSettingsUiMessage>(this, (_) => Toggle());
         Mediator.Subscribe<SwitchToIntroUiMessage>(this, (_) => IsOpen = false);
+        Mediator.Subscribe<SwitchToServiceRegistrationUiMessage>(this, (_) => IsOpen = false);
         Mediator.Subscribe<CutsceneStartMessage>(this, (_) => UiSharedService_GposeStart());
         Mediator.Subscribe<CutsceneEndMessage>(this, (_) => UiSharedService_GposeEnd());
         Mediator.Subscribe<CharacterDataCreatedMessage>(this, (msg) => LastCreatedCharacterData = msg.CharacterData);

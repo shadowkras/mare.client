@@ -59,7 +59,7 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
         {
             if (!isRenewal)
             {
-                _logger.LogDebug("GetNewToken: Requesting");
+                _logger.LogDebug("GetNewToken: Requesting new token from {url}", _serverManager.CurrentApiUrl);
 
                 if (!_serverManager.CurrentServer.UseOAuth2)
                 {
@@ -103,6 +103,9 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
             }
 
             response = await result.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+            _logger.LogDebug("GetNewToken: {response}", response);
+
             result.EnsureSuccessStatusCode();
             _tokenCache[identifier] = response;
         }
@@ -129,20 +132,22 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
 
         var handler = new JwtSecurityTokenHandler();
         var jwtToken = handler.ReadJwtToken(response);
+        var tokenExpliration = long.Parse(jwtToken.Claims?.SingleOrDefault(c => string.Equals(c.Type, "expiration_date", StringComparison.Ordinal))?.Value ?? "0");
         _logger.LogTrace("GetNewToken: JWT {token}", response);
-        _logger.LogDebug("GetNewToken: Valid until {date}, ValidClaim until {date}", jwtToken.ValidTo,
-                new DateTime(long.Parse(jwtToken.Claims.Single(c => string.Equals(c.Type, "expiration_date", StringComparison.Ordinal)).Value), DateTimeKind.Utc));
+        _logger.LogDebug("GetNewToken: Valid until {valid}, ValidClaim until {date}", jwtToken.ValidTo,
+                new DateTime(tokenExpliration, DateTimeKind.Utc));
         var dateTimeMinus10 = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(10));
         var dateTimePlus10 = DateTime.UtcNow.Add(TimeSpan.FromMinutes(10));
         var tokenTime = jwtToken.ValidTo.Subtract(TimeSpan.FromHours(6));
         if (tokenTime <= dateTimeMinus10 || tokenTime >= dateTimePlus10)
         {
-            _tokenCache.TryRemove(identifier, out _);
-            Mediator.Publish(new NotificationMessage("Invalid system clock", "The clock of your computer is invalid. " +
-                "Mare will not function properly if the time zone is not set correctly. " +
-                "Please set your computers time zone correctly and keep your clock synchronized with the internet.",
-                NotificationType.Error));
-            throw new InvalidOperationException($"JwtToken is behind DateTime.UtcNow, DateTime.UtcNow is possibly wrong. DateTime.UtcNow is {DateTime.UtcNow}, JwtToken.ValidTo is {jwtToken.ValidTo}");
+            // Disabling for now, servers are in different timezones.
+            //_tokenCache.TryRemove(identifier, out _);
+            //Mediator.Publish(new NotificationMessage("Invalid system clock", "The clock of your computer is invalid. " +
+            //    "Mare will not function properly if the time zone is not set correctly. " +
+            //    "Please set your computers time zone correctly and keep your clock synchronized with the internet.",
+            //    NotificationType.Error));
+            //throw new InvalidOperationException($"JwtToken is behind DateTime.UtcNow, DateTime.UtcNow is possibly wrong. DateTime.UtcNow is {DateTime.UtcNow}, JwtToken.ValidTo is {jwtToken.ValidTo}");
         }
         return response;
     }

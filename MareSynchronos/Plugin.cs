@@ -30,6 +30,7 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using MareSynchronos.Services.CharaData;
 using Dalamud.Game;
+using MareSynchronos.WebAPI.Services;
 
 namespace MareSynchronos;
 
@@ -110,6 +111,7 @@ public sealed class Plugin : IDalamudPlugin
             collection.AddSingleton<CharacterAnalyzer>();
             collection.AddSingleton<TokenProvider>();
             collection.AddSingleton<PluginWarningNotificationService>();
+            collection.AddSingleton<RegistrationService>();
             collection.AddSingleton<FileCompactor>();
             collection.AddSingleton<TagHandler>();
             collection.AddSingleton<IdDisplayHandler>();
@@ -200,6 +202,7 @@ public sealed class Plugin : IDalamudPlugin
             collection.AddScoped<WindowMediatorSubscriberBase, SettingsUi>();
             collection.AddScoped<WindowMediatorSubscriberBase, CompactUi>();
             collection.AddScoped<WindowMediatorSubscriberBase, IntroUi>();
+            collection.AddScoped<WindowMediatorSubscriberBase, ServiceRegistrationUi>();
             collection.AddScoped<WindowMediatorSubscriberBase, DownloadUi>();
             collection.AddScoped<WindowMediatorSubscriberBase, PopoutProfileUi>();
             collection.AddScoped<WindowMediatorSubscriberBase, DataAnalysisUi>();

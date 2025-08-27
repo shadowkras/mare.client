@@ -15,6 +15,7 @@ namespace MareSynchronos.Services.Mediator;
 #pragma warning disable MA0048 // File name must match type name
 #pragma warning disable S2094
 public record SwitchToIntroUiMessage : MessageBase;
+public record SwitchToServiceRegistrationUiMessage : MessageBase;
 public record SwitchToMainUiMessage : MessageBase;
 public record OpenSettingsUiMessage : MessageBase;
 public record DalamudLoginMessage : MessageBase;
