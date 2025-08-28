@@ -161,46 +161,12 @@ public class CompactUi : WindowMediatorSubscriberBase
         _windowContentWidth = UiSharedService.GetWindowContentRegionWidth();
         if (!_apiController.IsCurrentVersion)
         {
-            var ver = _apiController.CurrentClientVersion;
-            var unsupported = "UNSUPPORTED VERSION";
-            using (_uiSharedService.UidFont.Push())
-            {
-                var uidTextSize = ImGui.CalcTextSize(unsupported);
-                ImGui.SetCursorPosX((ImGui.GetWindowContentRegionMax().X + ImGui.GetWindowContentRegionMin().X) / 2 - uidTextSize.X / 2);
-                ImGui.AlignTextToFramePadding();
-                ImGui.TextColored(ImGuiColors.DalamudRed, unsupported);
-            }
-            UiSharedService.ColorTextWrapped($"Your Mare Synchronos installation is out of date, the current version is {ver.Major}.{ver.Minor}.{ver.Build}. " +
-                $"It is highly recommended to keep Mare Synchronos up to date. Open /xlplugins and update the plugin.", ImGuiColors.DalamudRed);
+            DrawUnsupportedVersion();
         }
 
         if (!_ipcManager.Initialized)
         {
-            var unsupported = "MISSING ESSENTIAL PLUGINS";
-
-            using (_uiSharedService.UidFont.Push())
-            {
-                var uidTextSize = ImGui.CalcTextSize(unsupported);
-                ImGui.SetCursorPosX((ImGui.GetWindowContentRegionMax().X + ImGui.GetWindowContentRegionMin().X) / 2 - uidTextSize.X / 2);
-                ImGui.AlignTextToFramePadding();
-                ImGui.TextColored(ImGuiColors.DalamudRed, unsupported);
-            }
-            var penumAvailable = _ipcManager.Penumbra.APIAvailable;
-            var glamAvailable = _ipcManager.Glamourer.APIAvailable;
-
-            UiSharedService.ColorTextWrapped($"One or more Plugins essential for Mare operation are unavailable. Enable or update following plugins:", ImGuiColors.DalamudRed);
-            using var indent = ImRaii.PushIndent(10f);
-            if (!penumAvailable)
-            {
-                UiSharedService.TextWrapped("Penumbra");
-                _uiSharedService.BooleanToColoredIcon(penumAvailable, true);
-            }
-            if (!glamAvailable)
-            {
-                UiSharedService.TextWrapped("Glamourer");
-                _uiSharedService.BooleanToColoredIcon(glamAvailable, true);
-            }
-            ImGui.Separator();
+            DrawMissingEssentialPlugins();
         }
 
         using (ImRaii.PushId("server")) DrawServerSelect();
@@ -264,6 +230,51 @@ public class CompactUi : WindowMediatorSubscriberBase
         }
     }
 
+    private void DrawMissingEssentialPlugins()
+    {
+        var unsupported = "MISSING ESSENTIAL PLUGINS";
+
+        using (_uiSharedService.UidFont.Push())
+        {
+            var uidTextSize = ImGui.CalcTextSize(unsupported);
+            ImGui.SetCursorPosX((ImGui.GetWindowContentRegionMax().X + ImGui.GetWindowContentRegionMin().X) / 2 - uidTextSize.X / 2);
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextColored(ImGuiColors.DalamudRed, unsupported);
+        }
+        var penumAvailable = _ipcManager.Penumbra.APIAvailable;
+        var glamAvailable = _ipcManager.Glamourer.APIAvailable;
+
+        UiSharedService.ColorTextWrapped($"One or more Plugins essential for Mare operation are unavailable. Enable or update following plugins:", ImGuiColors.DalamudRed);
+        using var indent = ImRaii.PushIndent(10f);
+        if (!penumAvailable)
+        {
+            UiSharedService.TextWrapped("Penumbra");
+            _uiSharedService.BooleanToColoredIcon(penumAvailable, true);
+        }
+        if (!glamAvailable)
+        {
+            UiSharedService.TextWrapped("Glamourer");
+            _uiSharedService.BooleanToColoredIcon(glamAvailable, true);
+        }
+        ImGui.Separator();
+    }
+
+    private void DrawUnsupportedVersion()
+    {
+        // Disabled for now, this information should be set server side ideally from now on.
+        //var ver = _apiController.CurrentClientVersion;
+        //var unsupported = "UNSUPPORTED VERSION";
+        //using (_uiSharedService.UidFont.Push())
+        //{
+        //    var uidTextSize = ImGui.CalcTextSize(unsupported);
+        //    ImGui.SetCursorPosX((ImGui.GetWindowContentRegionMax().X + ImGui.GetWindowContentRegionMin().X) / 2 - uidTextSize.X / 2);
+        //    ImGui.AlignTextToFramePadding();
+        //    ImGui.TextColored(ImGuiColors.DalamudRed, unsupported);
+        //}
+        //UiSharedService.ColorTextWrapped($"Your Mare Synchronos installation is out of date, the current version is {ver.Major}.{ver.Minor}.{ver.Build}. " +
+        //    $"It is highly recommended to keep Mare Synchronos up to date. Open /xlplugins and update the plugin.", ImGuiColors.DalamudRed);
+    }
+
     private void DrawPairs()
     {
         var ySize = _transferPartHeight == 0
@@ -318,7 +329,9 @@ public class CompactUi : WindowMediatorSubscriberBase
 
     private void DrawServerSelect()
     {
+        bool isConnectingOrConnected = _apiController.ServerState is ServerState.Connected or ServerState.Connecting or ServerState.Reconnecting;
         string[] comboEntries = _serverManager.GetServerNames();
+
         if (_serverSelectionIndex == -1)
         {
             _serverSelectionIndex = Array.IndexOf(_serverManager.GetServerApiUrls(), _serverManager.CurrentApiUrl);
@@ -341,6 +354,8 @@ public class CompactUi : WindowMediatorSubscriberBase
                 {
                     _serverSelectionIndex = i;
                     _serverManager.SelectServer(i);
+
+                    _ = _apiController.CreateConnectionsAsync();
                 }
 
                 if (isSelected)
@@ -354,7 +369,7 @@ public class CompactUi : WindowMediatorSubscriberBase
 
         ImGui.SameLine();
 
-        bool isConnectingOrConnected = _apiController.ServerState is ServerState.Connected or ServerState.Connecting or ServerState.Reconnecting;
+        
         var color = UiSharedService.GetBoolColor(!isConnectingOrConnected);
         var connectedIcon = isConnectingOrConnected ? FontAwesomeIcon.Unlink : FontAwesomeIcon.Link;
         var buttonSize = _uiSharedService.GetIconButtonSize(FontAwesomeIcon.Link);
@@ -369,14 +384,13 @@ public class CompactUi : WindowMediatorSubscriberBase
                 {
                     _serverManager.CurrentServer.FullPause = true;
                     _serverManager.Save();
+                    _ = _apiController.CreateConnectionsAsync();
                 }
                 else if (!isConnectingOrConnected && _serverManager.CurrentServer.FullPause)
                 {
                     _serverManager.CurrentServer.FullPause = false;
                     _serverManager.Save();
                 }
-
-                _ = _apiController.CreateConnectionsAsync();
             }
         }
 
