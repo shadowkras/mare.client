@@ -81,7 +81,7 @@ public class HubFactory : MediatorSubscriberBase
 
         var hubUrl = (!string.IsNullOrEmpty(_serverConfigurationManager.CurrentServer.ServerHubUri) ? 
             _serverConfigurationManager.CurrentServer.ServerHubUri :
-            _serverConfigurationManager.CurrentApiUrl + IMareHub.Path;
+            _serverConfigurationManager.CurrentApiUrl + IMareHub.Path);
 
         _instance = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>
