@@ -195,7 +195,7 @@ public class ServerConfigurationManager
 
     public string[] GetServerApiUrls()
     {
-        return _configService.Current.ServerStorage.Select(v => (v.ServerApiUri ?? v.ServerUri)).ToArray();
+        return _configService.Current.ServerStorage.Select(v => (!string.IsNullOrEmpty(v.ServerApiUri) ? v.ServerApiUri : v.ServerUri)).ToArray();
     }
 
     public ServerStorage GetServerByIndex(int idx)

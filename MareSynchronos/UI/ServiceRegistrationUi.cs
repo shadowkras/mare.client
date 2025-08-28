@@ -49,7 +49,7 @@ public partial class ServiceRegistrationUi : WindowMediatorSubscriberBase
             MaximumSize = new Vector2(600, 2000),
         };
 
-        Mediator.Subscribe<SwitchToMainUiMessage>(this, (_) => IsOpen = false);
+        //Mediator.Subscribe<SwitchToMainUiMessage>(this, (_) => IsOpen = false);
         Mediator.Subscribe<SwitchToServiceRegistrationUiMessage>(this, (_) =>
         {
             _configService.Current.UseCompactor = !dalamudUtilService.IsWine;

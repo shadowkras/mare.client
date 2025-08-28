@@ -127,7 +127,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
 
         if (_serverManager.CurrentServer?.FullPause ?? true)
         {
-            Logger.LogInformation("Not recreating Connection, paused");
+            Logger.LogInformation("Not recreating connection. Paused.");
             _connectionDto = null;
             await StopConnectionAsync(ServerState.Disconnected).ConfigureAwait(false);
             _connectionCancellationTokenSource?.Cancel();
@@ -193,7 +193,8 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
         await StopConnectionAsync(ServerState.Disconnected).ConfigureAwait(false);
 
         Logger.LogInformation("Recreating Connection");
-        PublishEventMessage($"Starting Connection to {_serverManager.CurrentServer.ServerName}", MareSynchronos.Services.Events.EventSeverity.Informational);
+        PublishEventMessage($"Starting Connection to {_serverManager.CurrentServer.ServerName} ({_serverManager.CurrentServer.ServerUri})", 
+            MareSynchronos.Services.Events.EventSeverity.Informational);
 
         _connectionCancellationTokenSource?.Cancel();
         _connectionCancellationTokenSource?.Dispose();
@@ -305,7 +306,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
             }
             catch (HttpRequestException ex)
             {
-                Logger.LogWarning(ex, "HttpRequestException on Connection");
+                Logger.LogWarning(ex, "HttpRequestException on connection");
 
                 if (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
@@ -314,7 +315,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
                 }
 
                 ServerState = ServerState.Reconnecting;
-                Logger.LogInformation("Failed to establish connection, retrying");
+                Logger.LogInformation("Failed to establish connection, retrying...");
                 await Task.Delay(TimeSpan.FromSeconds(new Random().Next(5, 20)), token).ConfigureAwait(false);
             }
             catch (InvalidOperationException ex)
@@ -327,7 +328,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
             {
                 Logger.LogWarning(ex, "Exception on Connection");
 
-                Logger.LogInformation("Failed to establish connection, retrying");
+                Logger.LogInformation("Failed to establish connection, retrying...");
                 await Task.Delay(TimeSpan.FromSeconds(new Random().Next(5, 20)), token).ConfigureAwait(false);
             }
         }

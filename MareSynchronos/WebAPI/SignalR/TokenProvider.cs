@@ -290,7 +290,7 @@ public sealed class TokenProvider : IDisposable, IMediatorSubscriber
                 return false;
         }
 
-        var tokenUri = MareAuth.RenewOAuthTokenFullPath(new Uri((currentServer.ServerApiUri ?? currentServer.ServerUri)
+        var tokenUri = MareAuth.RenewOAuthTokenFullPath(new Uri((!string.IsNullOrEmpty(currentServer.ServerApiUri) ? currentServer.ServerApiUri : currentServer.ServerUri)
             .Replace("wss://", "https://", StringComparison.OrdinalIgnoreCase)
             .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase)));
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, tokenUri.ToString());
