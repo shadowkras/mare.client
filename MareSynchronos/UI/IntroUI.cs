@@ -48,6 +48,7 @@ public partial class IntroUi : WindowMediatorSubscriberBase
         GetToSLocalization();
 
         Mediator.Subscribe<SwitchToMainUiMessage>(this, (_) => IsOpen = false);
+        Mediator.Subscribe<SwitchToServiceRegistrationUiMessage>(this, (_) => IsOpen = false);
         Mediator.Subscribe<SwitchToIntroUiMessage>(this, (_) =>
         {
             _configService.Current.UseCompactor = !dalamudUtilService.IsWine;
@@ -62,33 +63,7 @@ public partial class IntroUi : WindowMediatorSubscriberBase
 
         if (!_configService.Current.AcceptedAgreement && !_readFirstPage)
         {
-            _uiShared.BigText("Welcome to Mare Synchronos");
-            ImGui.Separator();
-            UiSharedService.TextWrapped("Mare Synchronos is a plugin that will replicate your full current character state including all Penumbra mods to other paired Mare Synchronos users. " +
-                              "Note that you will have to have Penumbra as well as Glamourer installed to use this plugin.");
-            UiSharedService.TextWrapped("We will have to setup a few things first before you can start using this plugin. Click on next to continue.");
-
-            UiSharedService.ColorTextWrapped("Note: Any modifications you have applied through anything but Penumbra cannot be shared and your character state on other clients " +
-                                 "might look broken because of this or others players mods might not apply on your end altogether. " +
-                                 "If you want to use this plugin you will have to move your mods to Penumbra.", ImGuiColors.DalamudYellow);
-            if (!_uiShared.DrawOtherPluginState()) return;
-            ImGui.Separator();
-            if (ImGui.Button("Next##toAgreement"))
-            {
-                _readFirstPage = true;
-#if !DEBUG
-                _timeoutTask = Task.Run(async () =>
-                {
-                    for (int i = 60; i > 0; i--)
-                    {
-                        _timeoutLabel = $"{Strings.ToS.ButtonWillBeAvailableIn} {i}s";
-                        await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
-                    }
-                });
-#else
-                _timeoutTask = Task.CompletedTask;
-#endif
-            }
+            DrawWelcome();
         }
         else if (!_configService.Current.AcceptedAgreement && _readFirstPage)
         {
@@ -209,6 +184,37 @@ public partial class IntroUi : WindowMediatorSubscriberBase
         {
             Mediator.Publish(new SwitchToMainUiMessage());
             IsOpen = false;
+        }
+    }
+
+    private void DrawWelcome()
+    {
+        _uiShared.BigText("Welcome to Mare Synchronos");
+        ImGui.Separator();
+        UiSharedService.TextWrapped("Mare Synchronos is a plugin that will replicate your full current character state including all Penumbra mods to other paired Mare Synchronos users. " +
+                          "Note that you will have to have Penumbra as well as Glamourer installed to use this plugin.");
+        UiSharedService.TextWrapped("We will have to setup a few things first before you can start using this plugin. Click on next to continue.");
+
+        UiSharedService.ColorTextWrapped("Note: Any modifications you have applied through anything but Penumbra cannot be shared and your character state on other clients " +
+                             "might look broken because of this or others players mods might not apply on your end altogether. " +
+                             "If you want to use this plugin you will have to move your mods to Penumbra.", ImGuiColors.DalamudYellow);
+        if (!_uiShared.DrawOtherPluginState()) return;
+        ImGui.Separator();
+        if (ImGui.Button("Next##toAgreement"))
+        {
+            _readFirstPage = true;
+#if !DEBUG
+                _timeoutTask = Task.Run(async () =>
+                {
+                    for (int i = 60; i > 0; i--)
+                    {
+                        _timeoutLabel = $"{Strings.ToS.ButtonWillBeAvailableIn} {i}s";
+                        await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+                    }
+                });
+#else
+            _timeoutTask = Task.CompletedTask;
+#endif
         }
     }
 

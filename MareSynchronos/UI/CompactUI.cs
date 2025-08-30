@@ -140,7 +140,6 @@ public class CompactUi : WindowMediatorSubscriberBase
 #endif
         Mediator.Subscribe<SwitchToMainUiMessage>(this, (_) => IsOpen = true);
         Mediator.Subscribe<SwitchToIntroUiMessage>(this, (_) => IsOpen = false);
-        Mediator.Subscribe<SwitchToServiceRegistrationUiMessage>(this, (_) => IsOpen = false);
         Mediator.Subscribe<CutsceneStartMessage>(this, (_) => UiSharedService_GposeStart());
         Mediator.Subscribe<CutsceneEndMessage>(this, (_) => UiSharedService_GposeEnd());
         Mediator.Subscribe<DownloadStartedMessage>(this, (msg) => _currentDownloads[msg.DownloadId] = msg.DownloadStatus);
@@ -384,13 +383,14 @@ public class CompactUi : WindowMediatorSubscriberBase
                 {
                     _serverManager.CurrentServer.FullPause = true;
                     _serverManager.Save();
-                    _ = _apiController.CreateConnectionsAsync();
                 }
                 else if (!isConnectingOrConnected && _serverManager.CurrentServer.FullPause)
                 {
                     _serverManager.CurrentServer.FullPause = false;
                     _serverManager.Save();
                 }
+
+                _ = _apiController.CreateConnectionsAsync();
             }
         }
 
