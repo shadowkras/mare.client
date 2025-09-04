@@ -350,10 +350,23 @@ public class CompactUi : WindowMediatorSubscriberBase
 
     private void DrawMultiServerSection()
     {
-        if (ImGui.CollapsingHeader("Connected Servers", ImGuiTreeNodeFlags.DefaultOpen))
+        bool showSidePanel = ImGui.CollapsingHeader("Connected Servers", ImGuiTreeNodeFlags.DefaultOpen);
+        if (showSidePanel)
         {
-            DrawMultiServerInterfaceTable();
+            var mainPos = ImGui.GetWindowPos();
+            var mainSize = ImGui.GetWindowSize();
+            ImGui.SetNextWindowPos(new Vector2(mainPos.X + mainSize.X + 5, mainPos.Y), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new Vector2(800, 800), ImGuiCond.Once);
+
+            if (ImGui.Begin("MultiServerSidePanel", ref showSidePanel, ImGuiWindowFlags.NoTitleBar))
+            {
+                DrawMultiServerInterfaceTable();
+                ImGui.End();
+            }
         }
+        UiSharedService.AttachToolTip(showSidePanel ?
+               "Hide the server selection list." :
+               "Show the server selection list.");
     }
 
     private void DrawMultiServerInterfaceTable()
