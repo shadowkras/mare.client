@@ -16,7 +16,7 @@ namespace MareSynchronos.Services.ServerConfiguration;
 
 public class ServerConfigurationManager
 {
-    private readonly ServerConfigService _configService;
+    private readonly ServerConfigService _serverConfigService;
     private readonly DalamudUtilService _dalamudUtil;
     private readonly MareConfigService _mareConfigService;
     private readonly HttpClient _httpClient;
@@ -25,12 +25,12 @@ public class ServerConfigurationManager
     private readonly NotesConfigService _notesConfig;
     private readonly ServerTagConfigService _serverTagConfig;
 
-    public ServerConfigurationManager(ILogger<ServerConfigurationManager> logger, ServerConfigService configService,
+    public ServerConfigurationManager(ILogger<ServerConfigurationManager> logger, ServerConfigService serverConfigService,
         ServerTagConfigService serverTagConfig, NotesConfigService notesConfig, DalamudUtilService dalamudUtil,
         MareConfigService mareConfigService, HttpClient httpClient, MareMediator mareMediator)
     {
         _logger = logger;
-        _configService = configService;
+        _serverConfigService = serverConfigService;
         _serverTagConfig = serverTagConfig;
         _notesConfig = notesConfig;
         _dalamudUtil = dalamudUtil;
@@ -41,17 +41,17 @@ public class ServerConfigurationManager
     }
 
     public string CurrentApiUrl => (!string.IsNullOrEmpty(CurrentServer.ServerApiUri) ? CurrentServer.ServerApiUri : CurrentServer.ServerUri);
-    public ServerStorage CurrentServer => _configService.Current.ServerStorage[CurrentServerIndex];
+    public ServerStorage CurrentServer => _serverConfigService.Current.ServerStorage[CurrentServerIndex];
     public bool SendCensusData
     {
         get
         {
-            return _configService.Current.SendCensusData;
+            return _serverConfigService.Current.SendCensusData;
         }
         set
         {
-            _configService.Current.SendCensusData = value;
-            _configService.Save();
+            _serverConfigService.Current.SendCensusData = value;
+            _serverConfigService.Save();
         }
     }
 
@@ -59,12 +59,12 @@ public class ServerConfigurationManager
     {
         get
         {
-            return _configService.Current.ShownCensusPopup;
+            return _serverConfigService.Current.ShownCensusPopup;
         }
         set
         {
-            _configService.Current.ShownCensusPopup = value;
-            _configService.Save();
+            _serverConfigService.Current.ShownCensusPopup = value;
+            _serverConfigService.Save();
         }
     }
 
@@ -72,18 +72,18 @@ public class ServerConfigurationManager
     {
         set
         {
-            _configService.Current.CurrentServer = value;
-            _configService.Save();
+            _serverConfigService.Current.CurrentServer = value;
+            _serverConfigService.Save();
         }
         get
         {
-            if (_configService.Current.CurrentServer < 0)
+            if (_serverConfigService.Current.CurrentServer < 0)
             {
-                _configService.Current.CurrentServer = 0;
-                _configService.Save();
+                _serverConfigService.Current.CurrentServer = 0;
+                _serverConfigService.Save();
             }
 
-            return _configService.Current.CurrentServer;
+            return _serverConfigService.Current.CurrentServer;
         }
     }
 
@@ -195,18 +195,18 @@ public class ServerConfigurationManager
 
     public string[] GetServerApiUrls()
     {
-        return _configService.Current.ServerStorage.Select(v => (!string.IsNullOrEmpty(v.ServerApiUri) ? v.ServerApiUri : v.ServerUri)).ToArray();
+        return _serverConfigService.Current.ServerStorage.Select(v => (!string.IsNullOrEmpty(v.ServerApiUri) ? v.ServerApiUri : v.ServerUri)).ToArray();
     }
 
     public ServerStorage GetServerByIndex(int idx)
     {
         try
         {
-            return _configService.Current.ServerStorage[idx];
+            return _serverConfigService.Current.ServerStorage[idx];
         }
         catch
         {
-            _configService.Current.CurrentServer = 0;
+            _serverConfigService.Current.CurrentServer = 0;
             EnsureMainExists();
             return CurrentServer!;
         }
@@ -230,9 +230,20 @@ public class ServerConfigurationManager
         }
     }
 
+    public List<ServerInfoDto> GetServerInfo()
+    {
+        var items = _serverConfigService.Current.ServerStorage
+            .Select((v, index) => new ServerInfoDto {
+                Id = index, 
+                Name = v.ServerName,
+                ServerUri = v.ServerUri,
+            }).ToList();
+        return items;
+    }
+
     public string[] GetServerNames()
     {
-        return _configService.Current.ServerStorage.Select(v => v.ServerName).ToArray();
+        return _serverConfigService.Current.ServerStorage.Select(v => v.ServerName).ToArray();
     }
 
     public bool HasValidConfig()
@@ -244,12 +255,12 @@ public class ServerConfigurationManager
     {
         var caller = new StackTrace().GetFrame(1)?.GetMethod()?.ReflectedType?.Name ?? "Unknown";
         _logger.LogDebug("{caller} Calling config save", caller);
-        _configService.Save();
+        _serverConfigService.Save();
     }
 
     public void SelectServer(int idx)
     {
-        _configService.Current.CurrentServer = idx;
+        _serverConfigService.Current.CurrentServer = idx;
         CurrentServer!.FullPause = false;
         Save();
     }
@@ -290,7 +301,7 @@ public class ServerConfigurationManager
 
     internal void AddServer(ServerStorage serverStorage)
     {
-        _configService.Current.ServerStorage.Add(serverStorage);
+        _serverConfigService.Current.ServerStorage.Add(serverStorage);
         Save();
     }
 
@@ -333,13 +344,13 @@ public class ServerConfigurationManager
 
     internal void DeleteServer(ServerStorage selectedServer)
     {
-        if (Array.IndexOf(_configService.Current.ServerStorage.ToArray(), selectedServer) <
-            _configService.Current.CurrentServer)
+        if (Array.IndexOf(_serverConfigService.Current.ServerStorage.ToArray(), selectedServer) <
+            _serverConfigService.Current.CurrentServer)
         {
-            _configService.Current.CurrentServer--;
+            _serverConfigService.Current.CurrentServer--;
         }
 
-        _configService.Current.ServerStorage.Remove(selectedServer);
+        _serverConfigService.Current.ServerStorage.Remove(selectedServer);
         Save();
     }
 
@@ -484,9 +495,9 @@ public class ServerConfigurationManager
 
     private void EnsureMainExists()
     {
-        if (_configService.Current.ServerStorage.Count == 0 || !string.Equals(_configService.Current.ServerStorage[0].ServerUri, ApiController.MainServiceUri, StringComparison.OrdinalIgnoreCase))
+        if (_serverConfigService.Current.ServerStorage.Count == 0 || !string.Equals(_serverConfigService.Current.ServerStorage[0].ServerUri, ApiController.MainServiceUri, StringComparison.OrdinalIgnoreCase))
         {
-            _configService.Current.ServerStorage.Insert(0, new ServerStorage() { ServerUri = ApiController.MainServiceUri, ServerName = ApiController.MainServer, UseOAuth2 = true });
+            _serverConfigService.Current.ServerStorage.Insert(0, new ServerStorage() { ServerUri = ApiController.MainServiceUri, ServerName = ApiController.MainServer, UseOAuth2 = true });
         }
         Save();
     }

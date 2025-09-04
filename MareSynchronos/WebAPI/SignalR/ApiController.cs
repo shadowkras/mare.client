@@ -77,10 +77,11 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
     public string DisplayName => _connectionDto?.User.AliasOrUID ?? string.Empty;
 
     public bool IsConnected => ServerState == ServerState.Connected;
+    public bool IsConnectedOrReconnecting => ServerState is ServerState.Connected or ServerState.Connecting or ServerState.Reconnecting;
 
     public bool IsCurrentVersion => (Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0, 0)) >= (_connectionDto?.CurrentClientVersion ?? new Version(0, 0, 0, 0));
 
-    public int OnlineUsers => SystemInfoDto.OnlineUsers;
+    public int OnlineUsers => ServerAlive ? SystemInfoDto.OnlineUsers : 0;
 
     public bool ServerAlive => ServerState is ServerState.Connected or ServerState.RateLimited or ServerState.Unauthorized or ServerState.Disconnected;
 
@@ -105,6 +106,14 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
         return await _mareHub!.InvokeAsync<bool>(nameof(CheckClientHealth)).ConfigureAwait(false);
     }
 
+    public async Task DisconnectAsync()
+    {
+        Logger.LogInformation("Not recreating connection. Paused.");
+        _connectionDto = null;
+        await StopConnectionAsync(ServerState.Disconnected).ConfigureAwait(false);
+        _connectionCancellationTokenSource?.Cancel();
+    }
+
     public async Task CreateConnectionsAsync()
     {
         if (!_serverManager.HasValidConfig())
@@ -127,10 +136,7 @@ public sealed partial class ApiController : DisposableMediatorSubscriberBase, IM
 
         if (_serverManager.CurrentServer?.FullPause ?? true)
         {
-            Logger.LogInformation("Not recreating connection. Paused.");
-            _connectionDto = null;
-            await StopConnectionAsync(ServerState.Disconnected).ConfigureAwait(false);
-            _connectionCancellationTokenSource?.Cancel();
+            await DisconnectAsync().ConfigureAwait(false);
             return;
         }
 

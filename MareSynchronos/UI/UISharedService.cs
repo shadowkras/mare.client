@@ -818,7 +818,7 @@ public partial class UiSharedService : DisposableMediatorSubscriberBase
         return true;
     }
 
-    public int DrawServiceSelection(bool selectOnChange = false, bool showConnect = true)
+    public int DrawServiceSelection(bool selectOnChange = false, bool showConnect = true, bool showAddService = true)
     {
         string[] comboEntries = _serverConfigurationManager.GetServerNames();
 
@@ -868,29 +868,39 @@ public partial class UiSharedService : DisposableMediatorSubscriberBase
                 _serverConfigurationManager.SelectServer(_serverSelectionIndex);
                 _ = _apiController.CreateConnectionsAsync();
             }
+
+            if (!string.IsNullOrEmpty(_serverConfigurationManager?.CurrentServer?.ServerName))
+            {
+                UiSharedService.AttachToolTip(_apiController.IsConnectedOrReconnecting ?
+                    "Reconnect to " + _serverConfigurationManager?.CurrentServer?.ServerName :
+                    "Connect to " + _serverConfigurationManager?.CurrentServer?.ServerName);
+            }
         }
 
-        if (ImGui.TreeNode("Add Custom Service"))
+        if (showAddService)
         {
-            ImGui.SetNextItemWidth(250);
-            ImGui.InputText("Custom Service URI", ref _customServerUri, 255);
-            ImGui.SetNextItemWidth(250);
-            ImGui.InputText("Custom Service Name", ref _customServerName, 255);
-            if (IconTextButton(FontAwesomeIcon.Plus, "Add Custom Service")
-                && !string.IsNullOrEmpty(_customServerUri)
-                && !string.IsNullOrEmpty(_customServerName))
+            if (ImGui.TreeNode("Add Custom Service"))
             {
-                _serverConfigurationManager.AddServer(new ServerStorage()
+                ImGui.SetNextItemWidth(250);
+                ImGui.InputText("Custom Service URI", ref _customServerUri, 255);
+                ImGui.SetNextItemWidth(250);
+                ImGui.InputText("Custom Service Name", ref _customServerName, 255);
+                if (IconTextButton(FontAwesomeIcon.Plus, "Add Custom Service")
+                    && !string.IsNullOrEmpty(_customServerUri)
+                    && !string.IsNullOrEmpty(_customServerName))
                 {
-                    ServerName = _customServerName,
-                    ServerUri = _customServerUri,
-                    UseOAuth2 = true
-                });
-                _customServerName = string.Empty;
-                _customServerUri = string.Empty;
-                _configService.Save();
+                    _serverConfigurationManager.AddServer(new ServerStorage()
+                    {
+                        ServerName = _customServerName,
+                        ServerUri = _customServerUri,
+                        UseOAuth2 = true
+                    });
+                    _customServerName = string.Empty;
+                    _customServerUri = string.Empty;
+                    _configService.Save();
+                }
+                ImGui.TreePop();
             }
-            ImGui.TreePop();
         }
 
         return _serverSelectionIndex;
@@ -1009,11 +1019,15 @@ public partial class UiSharedService : DisposableMediatorSubscriberBase
         return vector.X + vector2.X + ImGui.GetStyle().FramePadding.X * 2f + num;
     }
 
-    public bool IconButton(FontAwesomeIcon icon, float? height = null)
+    public bool IconButton(FontAwesomeIcon icon, int? uniqueId = null, float? height = null)
     {
         string text = icon.ToIconString();
 
-        ImGui.PushID(text);
+        if (uniqueId.HasValue)
+            ImGui.PushID(uniqueId.Value);
+        else
+            ImGui.PushID(text);
+
         Vector2 vector;
         using (IconFont.Push())
             vector = ImGui.CalcTextSize(text);
