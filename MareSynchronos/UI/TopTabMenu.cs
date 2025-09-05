@@ -1,11 +1,14 @@
 ﻿using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Utility;
 using MareSynchronos.API.Data.Enum;
 using MareSynchronos.API.Data.Extensions;
+using MareSynchronos.MareConfiguration;
 using MareSynchronos.PlayerData.Pairs;
+using MareSynchronos.Services;
 using MareSynchronos.Services.Mediator;
 using MareSynchronos.WebAPI;
 using System.Numerics;
@@ -25,13 +28,28 @@ public class TopTabMenu
 
     private string _pairToAdd = string.Empty;
 
+    private readonly CharacterAnalyzer _characterAnalyzer;
+    private Dictionary<MareSynchronos.API.Data.Enum.ObjectKind, Dictionary<string, CharacterAnalyzer.FileDataEntry>>? _cachedAnalysis;
+    private readonly PlayerPerformanceConfigService _playerPerformanceConfigService;
+    private bool _hasUpdate = false;
+
     private SelectedTab _selectedTab = SelectedTab.None;
-    public TopTabMenu(MareMediator mareMediator, ApiController apiController, PairManager pairManager, UiSharedService uiSharedService)
+    public TopTabMenu(MareMediator mareMediator, ApiController apiController, PairManager pairManager, UiSharedService uiSharedService,
+        CharacterAnalyzer characterAnalyzer, PlayerPerformanceConfigService playerPerformanceConfigService)
     {
         _mareMediator = mareMediator;
         _apiController = apiController;
         _pairManager = pairManager;
         _uiSharedService = uiSharedService;
+        _characterAnalyzer = characterAnalyzer;
+        _playerPerformanceConfigService = playerPerformanceConfigService;
+
+        CheckForCharacterAnalysis();
+    }
+
+    public void HasUpdate()
+    {
+        _hasUpdate = true;
     }
 
     private enum SelectedTab
@@ -83,6 +101,7 @@ public class TopTabMenu
 
         using (ImRaii.PushFont(UiBuilder.IconFont))
         {
+            ImGui.BeginDisabled(!_apiController.IsConnected);
             var x = ImGui.GetCursorScreenPos();
             if (ImGui.Button(FontAwesomeIcon.User.ToIconString(), buttonSize))
             {
@@ -94,11 +113,14 @@ public class TopTabMenu
                 drawList.AddLine(x with { Y = x.Y + buttonSize.Y + spacing.Y },
                     xAfter with { Y = xAfter.Y + buttonSize.Y + spacing.Y, X = xAfter.X - spacing.X },
                     underlineColor, 2);
+
+            ImGui.EndDisabled();
         }
         UiSharedService.AttachToolTip("Individual Pair Menu");
 
         using (ImRaii.PushFont(UiBuilder.IconFont))
         {
+            ImGui.BeginDisabled(!_apiController.IsConnected);
             var x = ImGui.GetCursorScreenPos();
             if (ImGui.Button(FontAwesomeIcon.Users.ToIconString(), buttonSize))
             {
@@ -110,12 +132,15 @@ public class TopTabMenu
                 drawList.AddLine(x with { Y = x.Y + buttonSize.Y + spacing.Y },
                     xAfter with { Y = xAfter.Y + buttonSize.Y + spacing.Y, X = xAfter.X - spacing.X },
                     underlineColor, 2);
+
+            ImGui.EndDisabled();
         }
         UiSharedService.AttachToolTip("Syncshell Menu");
 
         ImGui.SameLine();
         using (ImRaii.PushFont(UiBuilder.IconFont))
         {
+            ImGui.BeginDisabled(!_apiController.IsConnected);
             var x = ImGui.GetCursorScreenPos();
             if (ImGui.Button(FontAwesomeIcon.Filter.ToIconString(), buttonSize))
             {
@@ -128,6 +153,8 @@ public class TopTabMenu
                 drawList.AddLine(x with { Y = x.Y + buttonSize.Y + spacing.Y },
                     xAfter with { Y = xAfter.Y + buttonSize.Y + spacing.Y, X = xAfter.X - spacing.X },
                     underlineColor, 2);
+
+            ImGui.EndDisabled();
         }
         UiSharedService.AttachToolTip("Filter");
 
@@ -147,6 +174,7 @@ public class TopTabMenu
                     xAfter with { Y = xAfter.Y + buttonSize.Y + spacing.Y, X = xAfter.X - spacing.X },
                     underlineColor, 2);
         }
+
         UiSharedService.AttachToolTip("Your User Menu");
 
         ImGui.NewLine();
@@ -486,21 +514,125 @@ public class TopTabMenu
     private void DrawUserConfig(float availableWidth, float spacingX)
     {
         var buttonX = (availableWidth - spacingX) / 2f;
-        if (_uiSharedService.IconTextButton(FontAwesomeIcon.UserCircle, "Edit Mare Profile", buttonX))
-        {
-            _mareMediator.Publish(new UiToggleMessage(typeof(EditProfileUi)));
-        }
-        UiSharedService.AttachToolTip("Edit your Mare Profile");
-        ImGui.SameLine();
+        
         if (_uiSharedService.IconTextButton(FontAwesomeIcon.PersonCircleQuestion, "Chara Data Analysis", buttonX))
         {
             _mareMediator.Publish(new UiToggleMessage(typeof(DataAnalysisUi)));
         }
         UiSharedService.AttachToolTip("View and analyze your generated character data");
+
+        ImGui.SameLine();
         if (_uiSharedService.IconTextButton(FontAwesomeIcon.Running, "Character Data Hub", availableWidth))
         {
             _mareMediator.Publish(new UiToggleMessage(typeof(CharaDataHubUi)));
         }
+
+        ImGui.BeginDisabled(!_apiController.IsConnected);
+        if (_uiSharedService.IconTextButton(FontAwesomeIcon.UserCircle, "Edit Mare Profile", buttonX))
+        {
+            _mareMediator.Publish(new UiToggleMessage(typeof(EditProfileUi)));
+        }
+        UiSharedService.AttachToolTip("Edit your Mare Profile");
+        ImGui.EndDisabled();
+
+        ImGui.SameLine();
+        if (_uiSharedService.IconTextButton(FontAwesomeIcon.Satellite, "Connected Servers", availableWidth))
+        {
+            _mareMediator.Publish(new ToggleServerSelectMessage());
+        }
+        UiSharedService.AttachToolTip("Toggle the server selection list");
+
+        ImGui.Separator();
+        DrawModLoad();
+    }
+
+    private void DrawModLoad()
+    {
+        ImGui.TextUnformatted("My character load data");
+
+        _uiSharedService.DrawHelpText("This information uses your own settings for the warning and auto-pause threshold for comparison." + Environment.NewLine
+            + "This can be configured under Settings -> Performance.");
+        ImGuiHelpers.ScaledDummy(new Vector2(10, 10));
+
+        CheckForCharacterAnalysis();
+
+        if (_cachedAnalysis is not null)
+        {
+            var config = _playerPerformanceConfigService.Current;
+
+            var playerLoadMemory = _cachedAnalysis.Sum(c => c.Value.Sum(c => c.Value.OriginalSize));
+            var playerLoadTriangles = _cachedAnalysis.Sum(c => c.Value.Sum(f => f.Value.Triangles));
+
+            ImGui.TextUnformatted("Mem.");
+            ImGui.SameLine();
+            ImGui.TextUnformatted($"{UiSharedService.ByteToString(playerLoadMemory)}");
+
+            if (config.VRAMSizeAutoPauseThresholdMiB > 0)
+            {
+                var warning = false;
+                if (playerLoadMemory / 1024 > config.VRAMSizeWarningThresholdMiB * 1024)
+                    warning = true;
+
+                var alert = false;
+                if (playerLoadMemory / 1024 > config.VRAMSizeAutoPauseThresholdMiB * 1024)
+                    alert = true;
+
+                ImGuiHelpers.ScaledRelativeSameLine(180, ImGui.GetStyle().ItemSpacing.X);
+                var calculatedRam = ((float)(playerLoadMemory / 1024) / (config.VRAMSizeAutoPauseThresholdMiB * 1024));
+
+                DrawProgressBar(calculatedRam, "VRAM usage", warning, alert);
+            }
+
+            ImGui.TextUnformatted($"Tri.:");
+            ImGui.SameLine();
+            ImGui.TextUnformatted($"{playerLoadTriangles}");
+
+            if (config.TrisAutoPauseThresholdThousands > 0)
+            {
+                var warning = false;
+                if (playerLoadTriangles > config.TrisWarningThresholdThousands * 1000)
+                    warning = true;
+
+                var alert = false;
+                if (playerLoadTriangles > config.TrisAutoPauseThresholdThousands * 1000)
+                    alert = true;
+
+                ImGuiHelpers.ScaledRelativeSameLine(180, ImGui.GetStyle().ItemSpacing.X);
+                var calculatedTriangles = ((float)playerLoadTriangles / (config.TrisAutoPauseThresholdThousands * 1000));
+
+                DrawProgressBar(calculatedTriangles, "Triangle count", warning, alert);
+            }
+        }
+    }
+
+    private void CheckForCharacterAnalysis()
+    {
+        if (_hasUpdate)
+        {
+            _cachedAnalysis = _characterAnalyzer.LastAnalysis
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value
+                );
+            _hasUpdate = false;
+        }
+    }
+
+    private static void DrawProgressBar(float value, string tooltipText, bool warning = false, bool alert = false)
+    {
+        float width = Math.Max(170, ImGui.GetContentRegionAvail().X);
+        var progressBarSize = new Vector2(width, 20);
+
+        if (warning)
+            ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudYellow);
+        else if (alert)
+            ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudRed);
+        else
+            ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.HealerGreen);
+
+        ImGui.ProgressBar(value, progressBarSize);
+        UiSharedService.AttachToolTip($"{MathF.Round(value * 100, 2)}% {tooltipText}.");
+        ImGui.PopStyleColor();
     }
 
     private async Task GlobalControlCountdown(int countdown)
