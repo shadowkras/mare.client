@@ -52,6 +52,8 @@ public class TopTabMenu
         _hasUpdate = true;
     }
 
+    public bool IsUserConfigTabSelected => TabSelection == SelectedTab.UserConfig;
+
     private enum SelectedTab
     {
         None,

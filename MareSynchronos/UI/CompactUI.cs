@@ -181,10 +181,19 @@ public class CompactUi : WindowMediatorSubscriberBase
         using (ImRaii.PushId("global-topmenu")) _tabMenu.Draw();
 
         ImGui.BeginDisabled(!_apiController.IsConnected);
-        
-        using (ImRaii.PushId("pairlist")) DrawPairs();
-        ImGui.Separator();
-        float pairlistEnd = ImGui.GetCursorPosY();
+
+        if (!_tabMenu.IsUserConfigTabSelected)
+        {
+            using (ImRaii.PushId("pairlist")) DrawPairs();
+            ImGui.Separator();
+        }
+        else
+        {
+            using (ImRaii.PushId("pairlist")) DrawEmptyPairs();
+            ImGui.Separator();
+        }
+
+            float pairlistEnd = ImGui.GetCursorPosY();
         using (ImRaii.PushId("transfers")) DrawTransfers();
         _transferPartHeight = ImGui.GetCursorPosY() - pairlistEnd - ImGui.GetTextLineHeight();
         using (ImRaii.PushId("group-user-popup")) _selectPairsForGroupUi.Draw(_pairManager.DirectPairs);
@@ -276,6 +285,17 @@ public class CompactUi : WindowMediatorSubscriberBase
         //}
         //UiSharedService.ColorTextWrapped($"Your Mare Synchronos installation is out of date, the current version is {ver.Major}.{ver.Minor}.{ver.Build}. " +
         //    $"It is highly recommended to keep Mare Synchronos up to date. Open /xlplugins and update the plugin.", ImGuiColors.DalamudRed);
+    }
+
+    private void DrawEmptyPairs()
+    {
+        var ySize = _transferPartHeight == 0
+            ? 1
+            : (ImGui.GetWindowContentRegionMax().Y - ImGui.GetWindowContentRegionMin().Y
+                + ImGui.GetTextLineHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetStyle().WindowBorderSize) - _transferPartHeight - ImGui.GetCursorPosY();
+
+        ImGui.BeginChild("list", new Vector2(_windowContentWidth, ySize), border: false);
+        ImGui.EndChild();
     }
 
     private void DrawPairs()
